@@ -1,4 +1,4 @@
 discord.py==1.7.3
 python-dotenv
-youtube_dl==2021.6.6
+youtube_dl
 PyNaCl==1.4.0
