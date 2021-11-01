@@ -43,6 +43,11 @@ class music(commands.Cog):
         else:
             self.is_playing = False
 
+        if not self.vc.is_playing():
+            self.vc.disconnect()
+
+    
+
     # infinite loop checking 
     async def play_music(self):
         if len(self.music_queue) > 0:
@@ -59,7 +64,7 @@ class music(commands.Cog):
             
             print(self.music_queue)
 
-            #add to song playing before removing it
+            #add to song_playing before removing it
             self.song_playing = self.music_queue[0]
 
             #remove the first element as you are currently playing it
