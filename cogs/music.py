@@ -35,18 +35,16 @@ class music(commands.Cog):
 
             #get the first url
             m_url = self.music_queue[0][0]['source']
+            
+            #add to song_playing before removing it
+            self.song_playing = self.music_queue[0]
 
             #remove the first element as you are currently playing it
             self.music_queue.pop(0)
 
             self.vc.play(discord.FFmpegPCMAudio(m_url, **self.FFMPEG_OPTIONS), after=lambda e: self.play_next())
         else:
-            self.is_playing = False
-
-        if not self.vc.is_playing():
-            self.vc.disconnect()
-
-    
+            self.is_playing = False    
 
     # infinite loop checking 
     async def play_music(self):
