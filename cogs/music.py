@@ -22,7 +22,8 @@ class Music(commands.Cog):
             'logtostderr': False,
             'quiet': True,
             'no_warnings': True,
-            'default_search': 'auto'
+            'default_search': 'auto',
+            'cookiefile': 'cookies.txt',
         }
 
         self.FFMPEG_OPTIONS: Dict[str, str] = {
