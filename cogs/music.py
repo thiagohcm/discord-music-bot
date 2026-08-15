@@ -23,7 +23,7 @@ class Music(commands.Cog):
             'quiet': True,
             'no_warnings': True,
             'default_search': 'auto',
-            'username': 'oauth2',
+            'username': 'oauth',
             'password': '',
         }
 
