@@ -1,0 +1,10 @@
+.env
+venv/
+.venv/
+__pycache__/
+*.session
+*.log
+
+# PyCharm / JetBrains IDE settings
+.idea/
+*.iml
