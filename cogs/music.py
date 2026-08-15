@@ -25,6 +25,8 @@ class Music(commands.Cog):
             'default_search': 'auto',
             'username': 'oauth',
             'password': '',
+            'extractor_args': {'youtube': {'player_client': ['android', 'web']}
+}
         }
 
         self.FFMPEG_OPTIONS: Dict[str, str] = {
