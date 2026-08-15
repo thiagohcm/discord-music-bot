@@ -23,8 +23,7 @@ class Music(commands.Cog):
             'quiet': True,
             'no_warnings': True,
             'default_search': 'auto',
-            'username': 'oauth',
-            'password': '',
+            'cookiefile': 'cookies.txt',
             'extractor_args': {'youtube': {'player_client': ['android', 'web']}
 }
         }
