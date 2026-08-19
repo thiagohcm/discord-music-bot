@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands
 from yt_dlp import YoutubeDL
 from typing import Optional, Dict, Any, Union
-
+import asyncio
 
 # noinspection SpellCheckingInspection
 class Music(commands.Cog):
@@ -208,7 +208,7 @@ class Music(commands.Cog):
         # Send a temporary loading message during metadata extraction
         processing_msg = await ctx.send("🔍 Processando áudio, aguarde...")
 
-        songs = self.search_yt(query)
+        songs = await asyncio.to_thread(self.search_yt, query)
 
         # Ensure songs returned a valid list and silence linter warnings
         if isinstance(songs, bool):
