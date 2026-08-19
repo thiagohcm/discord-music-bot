@@ -5,7 +5,7 @@ import asyncio
 from dotenv import load_dotenv
 
 # load environment variables
-load_dotenv()
+load_dotenv('config/.env')
 
 # setup intents (required for v2.0+)
 intents = discord.Intents.default()

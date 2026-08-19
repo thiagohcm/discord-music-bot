@@ -1,9 +1,10 @@
-.env
 venv/
 .venv/
 __pycache__/
 *.session
 *.log
+config/*
+!config/.gitkeep
 
 # PyCharm / JetBrains IDE settings
 .idea/
