@@ -4,14 +4,14 @@
 
 # 🎵 Discord Music Bot
 
-A Discord music bot developed in Python, with support for audio playback, queues, and text commands for playback control.
+A Discord music bot developed in Python, with support for audio playback, full playlists, queues, and text commands for playback control.
 
 ---
 
 ## 🚀 Features
 
-- Audio playback via YouTube/URLs with extraction using `yt-dlp` and `FFmpeg`
-- Music queue management (`play`, `skip`, `stop`, `queue`, `pause`, `resume`)
+- Audio playback via YouTube, YouTube Music, and URLs with extraction using `yt-dlp` and `FFmpeg`
+- Music and playlist queue management (`play`, `skip`, `stop`, `jump`, `queue`, `pause`, `resume`)
 - Modular structure using `discord.py` Cogs
 
 ---

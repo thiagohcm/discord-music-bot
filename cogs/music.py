@@ -16,16 +16,15 @@ class Music(commands.Cog):
 
         self.YDL_OPTIONS: Dict[str, Any] = {
             'format': 'bestaudio/best',
-            'noplaylist': True,
+            'noplaylist': False,  # Process full playlists instead of single videos
             'nocheckcertificate': True,
-            'ignoreerrors': False,
+            'ignoreerrors': True,  # Skip unavailable or private videos without raising an error
             'logtostderr': False,
             'quiet': True,
             'no_warnings': True,
             'default_search': 'auto',
             'cookiefile': 'config/cookies.txt',
-            'extractor_args': {'youtube': {'player_client': ['android', 'web']}
-            }
+            'extractor_args': {'youtube': {'player_client': ['android', 'web']}}
         }
 
         self.FFMPEG_OPTIONS: Dict[str, str] = {
@@ -33,21 +32,57 @@ class Music(commands.Cog):
 
         self.vc: Optional[discord.VoiceClient] = None
 
-    def search_yt(self, item: str) -> Union[Dict[str, str], bool]:
+    def search_yt(self, item: str) -> Union[list, bool]:
+        # Determine if the input is a direct URL or a search query
+        is_link = item.startswith('http')
+        query = item if is_link else f"ytsearch:{item}"
+
         # noinspection PyTypeChecker
         with YoutubeDL(self.YDL_OPTIONS) as ydl:
             # noinspection PyBroadException
             try:
-                info = ydl.extract_info(f"ytsearch:{item}", download=False)
-                if isinstance(info, dict) and 'entries' in info:
-                    info = info['entries'][0]
+                info = ydl.extract_info(query, download=False)
             except Exception:
                 return False
 
         if not info or not isinstance(info, dict):
             return False
 
-        return {'source': info.get('url', ''), 'title': info.get('title', ''), 'link': info.get('webpage_url', '')}
+        songs = []
+
+        # The 'entries' key indicates a playlist or a list of search results
+        if 'entries' in info:
+            entries = info.get('entries')
+            if not isinstance(entries, list) or not entries:
+                return False
+
+            if not is_link:
+                # For search queries, extract only the first top result
+                first_entry = entries[0]
+                if isinstance(first_entry, dict):
+                    songs.append({
+                        'source': first_entry.get('url', ''),
+                        'title': first_entry.get('title', ''),
+                        'link': first_entry.get('webpage_url', '')
+                    })
+            else:
+                # For playlist URLs, extract all valid video entries
+                for entry in entries:
+                    if isinstance(entry, dict):  # Skip entries that are unavailable or private
+                        songs.append({
+                            'source': entry.get('url', ''),
+                            'title': entry.get('title', ''),
+                            'link': entry.get('webpage_url', '')
+                        })
+        else:
+            # Single video entry without a playlist wrapper
+            songs.append({
+                'source': info.get('url', ''),
+                'title': info.get('title', ''),
+                'link': info.get('webpage_url', '')
+            })
+
+        return songs if len(songs) > 0 else False
 
     def play_next(self):
         if len(self.music_queue) > 0:
@@ -57,7 +92,12 @@ class Music(commands.Cog):
             self.music_queue.pop(0)
 
             if self.vc:
-                self.vc.play(discord.FFmpegPCMAudio(m_url, **self.FFMPEG_OPTIONS), after=lambda err: self.play_next())
+                def after_playing(err):
+                    if err:
+                        print(f"\n[FFMPEG STREAM ERROR]: {err}\n")
+                    self.play_next()
+
+                self.vc.play(discord.FFmpegPCMAudio(m_url, **self.FFMPEG_OPTIONS), after=after_playing)
         else:
             self.is_playing = False
 
@@ -79,50 +119,79 @@ class Music(commands.Cog):
                 self.song_playing = self.music_queue[0]
                 self.music_queue.pop(0)
 
-                # explicit type check to satisfy linter
+                # Explicit type check to satisfy linter
                 song_info = self.song_playing[0]
                 if isinstance(song_info, dict):
                     print(f"3. Injecting audio to FFmpeg: {song_info.get('title', 'Unknown')}")
 
                 if self.vc:
-                    self.vc.play(discord.FFmpegPCMAudio(m_url, **self.FFMPEG_OPTIONS),
-                                 after=lambda err: self.play_next())
+                    def after_playing(err):
+                        if err:
+                            print(f"\n[FFMPEG STREAM ERROR]: {err}\n")
+                        self.play_next()
+
+                    self.vc.play(discord.FFmpegPCMAudio(m_url, **self.FFMPEG_OPTIONS), after=after_playing)
                     print("4. Audio streaming perfectly!\n")
 
+            # noinspection PyBroadException
             except Exception as e:
                 print(f"\n[AUDIO ERROR DETECTED]: {e}\n")
-                self.is_playing = False  # unlock bot to try again
+                self.is_playing = False  # Unlock bot to try again
                 if self.vc:
-                    await self.vc.disconnect()
+                    # noinspection PyBroadException
+                    try:
+                        await self.vc.disconnect()
+                    except Exception:
+                        pass
+                    self.vc = None
         else:
             self.is_playing = False
             if self.vc:
-                await self.vc.disconnect()
+                # noinspection PyBroadException
+                try:
+                    await self.vc.disconnect()
+                except Exception:
+                    pass
+                self.vc = None
 
-    @commands.command(name="help", aliases=['ajuda'], help="Comando de ajuda")
+    @commands.command(name="help", aliases=['ajuda'], help="Mostra esta central de ajuda com todos os comandos.")
     async def help(self, ctx):
-        helptxt = ''
-        for command in self.client.commands:
-            cmd_help = command.help if command.help else "Sem descrição"
-            helptxt += f'**{command}** - {cmd_help}\n'
-
+        # Create the embed with an introductory description
         embedhelp = discord.Embed(
-            colour=1646116,
-            description=helptxt
+            colour=32768,
+            description="Olá! Eu sou o seu Bot de Música. Fui desenvolvido para extrair e reproduzir áudios e playlists do YouTube com alta qualidade diretamente no seu canal de voz.\n\n**Abaixo está a lista de comandos que você pode usar:**"
         )
 
+        # Set dynamic title and thumbnail based on the bot's profile
         bot_user = self.client.user
         if bot_user is not None:
-            embedhelp.title = f'Comandos do {bot_user.name}'
+            embedhelp.title = f'🎵 Central de Ajuda do {bot_user.name}'
             bot_avatar = bot_user.avatar
             if bot_avatar is not None:
                 embedhelp.set_thumbnail(url=bot_avatar.url)
         else:
-            embedhelp.title = 'Comandos do Bot'
+            embedhelp.title = '🎵 Central de Ajuda'
+
+        # Loop through all bot commands and format them nicely
+        for command in self.client.commands:
+            cmd_help = command.help if command.help else "Sem descrição"
+
+            # Format aliases to look like: [alias1, alias2]
+            aliases_str = f" `[{', '.join(command.aliases)}]`" if command.aliases else ""
+
+            # Add each command as a separate field in the embed
+            embedhelp.add_field(
+                name=f"**!{command.name}**{aliases_str}",
+                value=f"> {cmd_help}",
+                inline=False
+            )
+
+        # Add a helpful footer note
+        embedhelp.set_footer(text="Dica: Comandos como skip, stop e jump exigem permissão de Gerenciar Canais.")
 
         await ctx.send(embed=embedhelp)
 
-    @commands.command(name="play", help="Toca uma música do YouTube", aliases=['p', 'tocar'])
+    @commands.command(name="play", help="Toca uma música ou playlist do YouTube", aliases=['p', 'tocar'])
     async def p(self, ctx, *args):
         query = " ".join(args)
 
@@ -135,24 +204,41 @@ class Music(commands.Cog):
             )
             await ctx.send(embed=embedvc)
             return
-        else:
-            song = self.search_yt(query)
-            if isinstance(song, bool):
-                embedvc = discord.Embed(
-                    colour=12255232,
-                    description='Algo deu errado! Tente mudar ou configurar a playlist/vídeo ou escrever o nome dele novamente!'
-                )
-                await ctx.send(embed=embedvc)
-            else:
-                embedvc = discord.Embed(
-                    colour=32768,
-                    description=f"Você adicionou a música [**{song['title']}**]({song['link']}) à fila!"
-                )
-                await ctx.send(embed=embedvc)
-                self.music_queue.append([song, voice_channel])
 
-                if not self.is_playing:
-                    await self.play_music()
+        # Send a temporary loading message during metadata extraction
+        processing_msg = await ctx.send("🔍 Processando áudio, aguarde...")
+
+        songs = self.search_yt(query)
+
+        # Ensure songs returned a valid list and silence linter warnings
+        if isinstance(songs, bool):
+            embedvc = discord.Embed(
+                colour=12255232,
+                description='Algo deu errado! Tente mudar o link, verificar se a playlist é pública ou escrever o nome novamente!'
+            )
+            await processing_msg.edit(content=None, embed=embedvc)
+            return
+
+        # Format the confirmation message based on the number of songs added
+        if len(songs) == 1:
+            embedvc = discord.Embed(
+                colour=32768,
+                description=f"Você adicionou a música [**{songs[0]['title']}**]({songs[0]['link']}) à fila!"
+            )
+        else:
+            embedvc = discord.Embed(
+                colour=32768,
+                description=f"Você adicionou uma playlist com **{len(songs)}** músicas à fila!"
+            )
+
+        await processing_msg.edit(content=None, embed=embedvc)
+
+        # Append extracted songs to the playback queue
+        for song in songs:
+            self.music_queue.append([song, voice_channel])
+
+        if not self.is_playing:
+            await self.play_music()
 
     @commands.command(name="queue", help="Mostra as atuais músicas da fila.", aliases=['q', 'fila'])
     async def q(self, ctx):
@@ -198,6 +284,74 @@ class Music(commands.Cog):
             )
             await ctx.send(embed=embedvc)
 
+    @commands.command(name="jump", help="Pula direto para uma música específica da fila.", aliases=['j', 'pularpara'])
+    @commands.has_permissions(manage_channels=True)
+    async def jump(self, ctx, index: str):
+        try:
+            target_index = int(index)
+        except ValueError:
+            embedvc = discord.Embed(
+                colour=12255232,
+                description="Por favor, forneça um número válido da fila. Ex: `!jump 3`"
+            )
+            await ctx.send(embed=embedvc)
+            return
+
+        if not self.music_queue:
+            embedvc = discord.Embed(
+                colour=1646116,
+                description="A fila está vazia no momento."
+            )
+            await ctx.send(embed=embedvc)
+            return
+
+        if target_index < 1 or target_index > len(self.music_queue):
+            embedvc = discord.Embed(
+                colour=12255232,
+                description=f"Posição inválida! Escolha um número entre **1** e **{len(self.music_queue)}**."
+            )
+            await ctx.send(embed=embedvc)
+            return
+
+        # Convert to 0-based index and pop the song from its current position
+        list_index = target_index - 1
+        song_to_jump = self.music_queue.pop(list_index)
+
+        # Insert the selected song at the very beginning of the queue
+        self.music_queue.insert(0, song_to_jump)
+
+        song_data = song_to_jump[0]
+        if isinstance(song_data, dict):
+            embedvc = discord.Embed(
+                colour=32768,
+                description=f"Pulando diretamente para: [**{song_data.get('title', 'Unknown')}**]({song_data.get('link', '')})"
+            )
+            await ctx.send(embed=embedvc)
+
+        # Stop the current playback to trigger play_next() automatically with the new top song
+        if self.vc and self.is_playing:
+            self.vc.stop()
+        elif not self.is_playing:
+            await self.play_music()
+
+    @commands.command(name="stop", help="Para a música e limpa a fila atual.", aliases=['parar'])
+    @commands.has_permissions(manage_channels=True)
+    async def stop(self, ctx):
+        # Clear the queue completely
+        self.music_queue.clear()
+
+        if self.vc:
+            self.vc.stop()
+
+        self.is_playing = False
+        self.song_playing = ''
+
+        embedvc = discord.Embed(
+            colour=12255232,
+            description="Música parada e fila completamente limpa!"
+        )
+        await ctx.send(embed=embedvc)
+
     @commands.command(name="pause", help="Pausa a atual música que está tocando.", aliases=['pausar', 'ps'])
     @commands.has_permissions(manage_channels=True)
     async def pause(self, ctx):
@@ -221,11 +375,13 @@ class Music(commands.Cog):
             await ctx.send(embed=embedvc)
 
     @skip.error
-    async def skip_error(self, ctx, error):
+    @jump.error
+    @stop.error
+    async def permissions_error(self, ctx, error):
         if isinstance(error, commands.MissingPermissions):
             embedvc = discord.Embed(
                 colour=12255232,
-                description=f"Você precisa da permissão **Gerenciar canais** para pular músicas!"
+                description=f"Você precisa da permissão **Gerenciar canais** para usar este comando!"
             )
             await ctx.send(embed=embedvc)
         else:
