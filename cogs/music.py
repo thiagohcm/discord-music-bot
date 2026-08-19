@@ -154,7 +154,7 @@ class Music(commands.Cog):
                     pass
                 self.vc = None
 
-    @commands.command(name="help", aliases=['ajuda'], help="Mostra esta central de ajuda com todos os comandos.")
+    @commands.command(name="help", aliases=['h', 'ajuda'], help="Mostra esta central de ajuda com todos os comandos.")
     async def help(self, ctx):
         # Create the embed with an introductory description
         embedhelp = discord.Embed(
